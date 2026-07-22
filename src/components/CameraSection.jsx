@@ -11,13 +11,13 @@ function CameraSection({
   modelStatus,
   error,
   currentTone,
-  detectedLabel,        // ← Props dari App.jsx
-  detectedConfidence,   // ← Props dari App.jsx
-  isModelReady,         // ← Props dari App.jsx
-  loadingProgress,      // ← Props dari App.jsx
-  backendInfo           // ← Props dari App.jsx
+  detectedLabel,
+  detectedConfidence,
+  isModelReady,
+  loadingProgress,
+  backendInfo
 }) {
-  // ========== STATE LOCAL ==========
+  // ========== STATE ==========
   const [fps, setFps] = useState(30);
   const [cameraType, setCameraType] = useState('default');
   
@@ -25,7 +25,7 @@ function CameraSection({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // ========== SETUP VIDEO ELEMENT ==========
+  // ========== SETUP VIDEO ==========
   useEffect(() => {
     if (services.camera) {
       if (videoRef.current && !services.camera.video) {
@@ -50,34 +50,28 @@ function CameraSection({
     
     if (services.camera && services.camera.isActive()) {
       try {
-        // Tentukan facingMode berdasarkan pilihan
         const facingMode = newCameraType === 'front' ? 'user' : 'environment';
-        
-        // Update config camera
         services.camera.setFacingMode(facingMode);
         
-        // Restart camera dengan facingMode baru
-        // Ambil device ID yang sedang digunakan
-        const currentDeviceId = services.camera.getSelectedDeviceId();
-        
-        // Stop dulu
         services.camera.stopCamera();
-        
-        // Start ulang dengan facingMode baru
-        // Tapi karena kita sudah set facingMode di config, 
-        // startCamera akan menggunakan facingMode yang baru
         await services.camera.startCamera();
         
-        console.log(`📷 Camera switched to: ${newCameraType} (${facingMode})`);
+        console.log(`📷 Camera switched to: ${newCameraType}`);
       } catch (error) {
         console.error('❌ Failed to switch camera:', error);
-        // Jika gagal, coba start dengan default
-        try {
-          await services.camera.startCamera();
-        } catch (retryError) {
-          console.error('❌ Retry failed:', retryError);
-        }
       }
+    }
+  };
+
+  const handleFpsChange = (newFps) => {
+    setFps(Number(newFps));
+  };
+
+  // ========== PASTIKAN INI ADA ==========
+  const handleToneChange = (e) => {
+    const newTone = e.target.value;
+    if (onToneChange) {
+      onToneChange(newTone);
     }
   };
 
@@ -105,7 +99,7 @@ function CameraSection({
             className="hidden"
           />
 
-          {/* Loading Model - HANYA TAMPILAN */}
+          {/* Loading Model */}
           {!isModelReady && services.detection && (
             <div className="loading-overlay">
               <div className="loading-content">
@@ -134,7 +128,7 @@ function CameraSection({
             <div className="overlay-frame"></div>
           </div>
 
-          {/* Hasil Deteksi - DARI PROPS */}
+          {/* Hasil Deteksi */}
           {isRunning && detectedLabel && (
             <div className="detection-result">
               <div className="detection-label">
