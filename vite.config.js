@@ -7,13 +7,44 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // ========== MANIFEST LANGSUNG (BUKAN PATH) ==========
+      manifest: {
+        name: 'RootFacts - Fakta Menarik Sayuran',
+        short_name: 'RootFacts',
+        description: 'Aplikasi AI untuk mengenali sayuran dan memberikan fakta menarik',
+        theme_color: '#10b981',
+        background_color: '#f9fafb',
+        display: 'standalone',
+        orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: '/icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icons/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icons/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any'
+          }
+        ]
+      },
       includeAssets: [
         'favicon.ico',
         'icons/apple-touch-icon.png',
         'icons/icon-192x192.png',
         'icons/icon-512x512.png'
       ],
-      manifest: '/manifest.json',
       workbox: {
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,woff2}',
@@ -31,7 +62,7 @@ export default defineConfig({
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 tahun
+                maxAgeSeconds: 60 * 60 * 24 * 365
               }
             }
           },
@@ -42,7 +73,7 @@ export default defineConfig({
               cacheName: 'google-fonts-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 tahun
+                maxAgeSeconds: 60 * 60 * 24 * 365
               }
             }
           },
@@ -53,30 +84,28 @@ export default defineConfig({
               cacheName: 'cdn-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 hari
+                maxAgeSeconds: 60 * 60 * 24 * 30
               }
             }
           },
           {
-            urlPattern: /\/models\/.*\.(json|bin)$/i,
+            urlPattern: /\/model\/.*\.(json|bin)$/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'model-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 hari
+                maxAgeSeconds: 60 * 60 * 24 * 7
               }
             }
           }
         ],
-        // Strategi precaching untuk model AI
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/_/, /\/api\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true
       },
-      // Development options
       devOptions: {
         enabled: true,
         type: 'module',
@@ -90,7 +119,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Pisahkan vendor chunks untuk optimasi caching
           'vendor-react': ['react', 'react-dom'],
           'vendor-tfjs': ['@tensorflow/tfjs'],
           'vendor-transformers': ['@huggingface/transformers']

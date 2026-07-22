@@ -19,11 +19,16 @@ function App() {
   const isRunningRef = useRef(false);
   const lastDetectedLabelRef = useRef(null);
   
-  // ========== STATE ==========
+  // ========== STATE UNTUK PROPS KE CAMERASECTION ==========
+  const [detectedLabel, setDetectedLabel] = useState(null);
+  const [detectedConfidence, setDetectedConfidence] = useState(0);
+  const [isModelReady, setIsModelReady] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [backendInfo, setBackendInfo] = useState('');
   const [currentTone, setCurrentTone] = useState('normal');
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // ========== INISIALISASI SERVICES ==========
+  // ========== INISIALISASI SERVICES (HANYA SEKALI) ==========
   useEffect(() => {
     const initializeServices = async () => {
       try {
@@ -49,10 +54,15 @@ function App() {
           generator: rootFactsService
         });
 
-        // 5. Load Detection Model (PATH: /model/ TUNGGAL)
+        // 5. Load Detection Model (SATU KALI DI SINI)
         actions.setModelStatus('Memuat Model Deteksi...');
         await detectionService.loadModel('/model/model.json');
         console.log('✅ Detection model loaded');
+        
+        // Update state untuk UI
+        setIsModelReady(true);
+        setBackendInfo(detectionService.getBackend());
+        setLoadingProgress(100);
 
         // 6. Load Generative AI Model
         actions.setModelStatus('Memuat Model AI Generatif...');
@@ -94,9 +104,9 @@ function App() {
       }
       console.log('🧹 App cleaned up');
     };
-  }, []); // Empty dependency array = run once on mount
+  }, []); // HANYA SEKALI
 
-  // ========== FUNGSI DETEKSI LOOP ==========
+  // ========== FUNGSI DETEKSI LOOP (SATU-SATUNYA) ==========
   const startDetectionLoop = () => {
     const videoElement = cameraServiceRef.current?.getVideoElement();
     const detectionService = detectionServiceRef.current;
@@ -123,7 +133,11 @@ function App() {
         const result = await detectionService.predict(videoElement);
 
         if (result) {
-          // Update state deteksi
+          // Update state UI
+          setDetectedLabel(result.label);
+          setDetectedConfidence(result.confidence);
+          
+          // Update state global
           actions.setDetectionResult({
             className: result.label,
             score: result.confidence,
@@ -135,13 +149,11 @@ function App() {
           if (lastDetectedLabelRef.current !== currentLabel) {
             lastDetectedLabelRef.current = currentLabel;
             
-            // Set state ke 'analyzing'
             actions.setAppState('analyzing');
             
-            // Generate fun fact dengan delay
+            // Generate fun fact
             setTimeout(async () => {
               try {
-                // Panggil generateFacts dengan tone yang dipilih
                 rootFactsServiceRef.current.setTone(currentTone);
                 const fact = await rootFactsServiceRef.current.generateFacts(currentLabel);
                 
@@ -188,7 +200,7 @@ function App() {
       }
 
       if (isRunningRef.current) {
-        // ========== STOP KAMERA ==========
+        // STOP
         console.log('🛑 Stopping camera...');
         
         isRunningRef.current = false;
@@ -202,16 +214,20 @@ function App() {
         actions.setAppState('idle');
         actions.resetResults();
         lastDetectedLabelRef.current = null;
+        setDetectedLabel(null);
+        setDetectedConfidence(0);
         
         console.log('✅ Camera stopped');
 
       } else {
-        // ========== START KAMERA ==========
+        // START
         console.log('📷 Starting camera...');
         actions.setAppState('idle');
         actions.setError(null);
         actions.resetResults();
         lastDetectedLabelRef.current = null;
+        setDetectedLabel(null);
+        setDetectedConfidence(0);
 
         await cameraService.startCamera();
         actions.setRunning(true);
@@ -245,7 +261,7 @@ function App() {
       rootFactsServiceRef.current.setTone(tone);
       console.log(`🎵 Tone changed to: ${tone}`);
       
-      // Jika sudah ada hasil deteksi, regenerate dengan tone baru
+      // Regenerate jika sudah ada hasil
       if (state.detectionResult && state.appState === 'result') {
         const vegetableName = state.detectionResult.className;
         if (vegetableName) {
@@ -309,6 +325,11 @@ function App() {
           modelStatus={state.modelStatus}
           error={state.error}
           currentTone={currentTone}
+          detectedLabel={detectedLabel}
+          detectedConfidence={detectedConfidence}
+          isModelReady={isModelReady}
+          loadingProgress={loadingProgress}
+          backendInfo={backendInfo}
         />
         
         <InfoPanel
@@ -316,7 +337,7 @@ function App() {
           detectionResult={state.detectionResult}
           funFactData={state.funFactData}
           error={state.error}
-          onCopyFact={handleCopyFact}  // ← DITERUSKAN!
+          onCopyFact={handleCopyFact}
         />
       </main>
       
