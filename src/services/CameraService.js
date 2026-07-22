@@ -73,12 +73,29 @@ export class CameraService {
         throw new Error('Video element belum diset. Panggil setVideoElement() terlebih dahulu.');
       }
 
+      // Cek izin
       const permissions = await navigator.permissions.query({ name: 'camera' });
       if (permissions.state === 'denied') {
         throw new Error('Izin kamera ditolak oleh pengguna');
       }
 
-      const constraints = this.getCameraConstraints(selectedCameraId);
+      // ========== BUILD CONSTRAINTS ==========
+      const constraints = {
+        video: {
+          width: { ideal: this.config.width },
+          height: { ideal: this.config.height },
+          frameRate: { ideal: this.config.fps },
+          facingMode: this.config.facingMode, // ← PASTIKAN INI ADA
+        },
+        audio: false,
+      };
+
+      // Jika ada device ID spesifik, gunakan itu
+      if (selectedCameraId) {
+        constraints.video.deviceId = { exact: selectedCameraId };
+      }
+
+      console.log('📷 Camera constraints:', constraints);
       console.log('📷 Starting camera...');
       
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -89,6 +106,7 @@ export class CameraService {
         this.selectedDeviceId = settings.deviceId || null;
         console.log(`📷 Camera started: ${videoTrack.label}`);
         console.log(`📐 Resolution: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+        console.log(`📷 Facing mode: ${settings.facingMode || 'unknown'}`);
       }
 
       this.video.srcObject = this.stream;
@@ -108,6 +126,19 @@ export class CameraService {
         throw new Error('Tidak ditemukan kamera. Pastikan kamera terhubung.');
       } else if (error.name === 'NotReadableError') {
         throw new Error('Kamera sedang digunakan oleh aplikasi lain.');
+      } else if (error.name === 'OverconstrainedError') {
+        // Jika facingMode tidak tersedia, coba tanpa facingMode
+        console.warn('⚠️ Facing mode not available, retrying without facingMode...');
+        const fallbackConstraints = {
+          video: {
+            width: { ideal: this.config.width },
+            height: { ideal: this.config.height },
+            frameRate: { ideal: this.config.fps },
+          },
+          audio: false,
+        };
+        this.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        // Lanjutkan seperti biasa...
       } else {
         throw new Error(`Gagal memulai kamera: ${error.message}`);
       }
@@ -184,16 +215,14 @@ export class CameraService {
   }
 
   // ========== SETTERS ==========
-  setConfig(config) {
-    this.config = { ...this.config, ...config };
-    console.log('⚙️ Config updated:', this.config);
-  }
-
   setFacingMode(mode) {
     if (mode === 'environment' || mode === 'user') {
       this.config.facingMode = mode;
       console.log(`📷 Facing mode set to: ${mode}`);
+      return true;
     }
+    console.warn(`⚠️ Invalid facing mode: ${mode}`);
+    return false;
   }
 
   // ========== TOGGLE ==========

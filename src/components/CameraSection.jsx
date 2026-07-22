@@ -45,24 +45,39 @@ function CameraSection({
   }, [fps, services.camera]);
 
   // ========== HANDLERS ==========
-  const handleCameraChange = (newCameraType) => {
+  const handleCameraChange = async (newCameraType) => {
     setCameraType(newCameraType);
+    
     if (services.camera && services.camera.isActive()) {
-      // Ganti kamera depan/belakang
-      const facingMode = newCameraType === 'front' ? 'user' : 'environment';
-      services.camera.setFacingMode(facingMode);
-      services.camera.startCamera();
-    }
-  };
-
-  const handleFpsChange = (newFps) => {
-    setFps(Number(newFps));
-  };
-
-  const handleToneChange = (e) => {
-    const newTone = e.target.value;
-    if (onToneChange) {
-      onToneChange(newTone);
+      try {
+        // Tentukan facingMode berdasarkan pilihan
+        const facingMode = newCameraType === 'front' ? 'user' : 'environment';
+        
+        // Update config camera
+        services.camera.setFacingMode(facingMode);
+        
+        // Restart camera dengan facingMode baru
+        // Ambil device ID yang sedang digunakan
+        const currentDeviceId = services.camera.getSelectedDeviceId();
+        
+        // Stop dulu
+        services.camera.stopCamera();
+        
+        // Start ulang dengan facingMode baru
+        // Tapi karena kita sudah set facingMode di config, 
+        // startCamera akan menggunakan facingMode yang baru
+        await services.camera.startCamera();
+        
+        console.log(`📷 Camera switched to: ${newCameraType} (${facingMode})`);
+      } catch (error) {
+        console.error('❌ Failed to switch camera:', error);
+        // Jika gagal, coba start dengan default
+        try {
+          await services.camera.startCamera();
+        } catch (retryError) {
+          console.error('❌ Retry failed:', retryError);
+        }
+      }
     }
   };
 
