@@ -1,1 +1,119 @@
+# ========================================
+# DEPENDENCIES
+# ========================================
 node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ========================================
+# BUILD OUTPUTS
+# ========================================
+dist/
+dev-dist/
+build/
+out/
+*.local
+
+# ========================================
+# ENVIRONMENT VARIABLES
+# ========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*.local
+
+# ========================================
+# LOGS
+# ========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ========================================
+# OS FILES
+# ========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.swp
+*.swo
+*~
+
+# ========================================
+# EDITOR / IDE
+# ========================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.code-workspace
+
+# ========================================
+# TESTING
+# ========================================
+coverage/
+.nyc_output/
+
+# ========================================
+# MISC
+# ========================================
+*.pem
+*.p12
+*.crt
+*.key
+*.cert
+*.p7b
+*.pfx
+*.der
+*.csr
+
+# ========================================
+# TEMPORARY FILES
+# ========================================
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# ========================================
+# NPM / YARN / PNPM
+# ========================================
+.yarn/
+.yarnrc
+.yarnrc.yml
+.pnpm-store/
+
+# ========================================
+# TYPESCRIPT (opsional)
+# ========================================
+*.tsbuildinfo
+
+# ========================================
+# PROJECT SPECIFIC
+# ========================================
+# Model files (opsional - jika berat)
+# public/model/*.bin
+# public/model/*.json
+
+# Service worker (generated)
+sw.js
+workbox-*.js
+manifest.webmanifest
+
+# STUDENT.txt (opsional - jika berisi URL personal)
+STUDENT.txt
+
+# Netlify
+.netlify/
+netlify/
