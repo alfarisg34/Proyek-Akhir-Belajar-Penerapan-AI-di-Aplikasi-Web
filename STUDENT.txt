@@ -1,1 +1,1 @@
-APP_URL=
+APP_URL=https://cheery-sundae-e93211.netlify.app/

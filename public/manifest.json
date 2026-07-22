@@ -1,0 +1,31 @@
+{
+  "name": "RootFacts - Fakta Menarik Sayuran",
+  "short_name": "RootFacts",
+  "description": "Aplikasi AI untuk mengenali sayuran dan memberikan fakta menarik",
+  "theme_color": "#10b981",
+  "background_color": "#f9fafb",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
