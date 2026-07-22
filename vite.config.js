@@ -17,7 +17,7 @@ export default defineConfig({
       workbox: {
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,woff2}',
-          '**/models/**/*.{json,bin}'
+          '**/model/**/*.{json,bin}'
         ],
         globIgnores: [
           '**/node_modules/**/*',

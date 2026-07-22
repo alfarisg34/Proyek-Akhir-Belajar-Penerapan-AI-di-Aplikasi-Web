@@ -51,7 +51,7 @@ function CameraSection({
       const loadModel = async () => {
         try {
           console.log('🔄 Loading detection model...');
-          await services.detection.loadModel('/models/model.json');
+          await services.detection.loadModel('/model/model.json'); // ← TUNGGAL: model
           setIsModelReady(true);
           setBackendInfo(services.detection.getBackend());
           console.log('✅ Detection model ready!');

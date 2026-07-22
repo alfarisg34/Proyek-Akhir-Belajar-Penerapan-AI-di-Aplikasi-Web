@@ -46,16 +46,12 @@ export class RootFactsService {
       console.log('🧠 Loading Generative AI model...');
       this.loadingProgress = 0;
 
-      // ========== BACKEND ADAPTIF (Advanced) ==========
+      // Backend Adaptive
       console.log('🔍 Checking GPU support for Transformers.js...');
-      
-      // Cek dukungan WebGPU
       const isWebGPUSupported = navigator.gpu !== undefined;
       
       if (isWebGPUSupported) {
         try {
-          // Transformers.js akan otomatis menggunakan WebGPU jika tersedia
-          // Tapi kita tetap set environment hint
           this.currentBackend = 'webgpu';
           console.log('✅ WebGPU backend available for Transformers.js');
         } catch (webgpuError) {
@@ -67,16 +63,12 @@ export class RootFactsService {
         console.log('✅ Using WebGL/WASM backend for Transformers.js');
       }
 
-      // ========== LOAD PIPELINE ==========
-      // Gunakan model ringan untuk text generation
-      // Model: distilgpt2 atau google/flan-t5-small (lebih ringan)
-      // Atau gunakan LaMini-Flan-T5 seperti di modul
+      // LOAD MODEL - Gunakan yang lebih ringan (77M)
       this.generator = await pipeline(
         'text2text-generation',
-        'Xenova/LaMini-Flan-T5-783M',  // Model yang digunakan di modul
+        'Xenova/LaMini-Flan-T5-77M',  // ← 77M (lebih ringan dari 783M)
         {
-          // Opsi untuk mengoptimalkan loading
-          dtype: 'q4',  // Quantization 4-bit untuk mengurangi ukuran
+          dtype: 'q4',
           device: this.currentBackend === 'webgpu' ? 'webgpu' : 'wasm',
           progress_callback: (progress) => {
             this.loadingProgress = Math.round(progress * 100);
