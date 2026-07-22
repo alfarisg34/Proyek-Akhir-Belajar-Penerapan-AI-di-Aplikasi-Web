@@ -112,7 +112,6 @@ workbox-*.js
 manifest.webmanifest
 
 # STUDENT.txt (opsional - jika berisi URL personal)
-STUDENT.txt
 
 # Netlify
 .netlify/
