@@ -7,7 +7,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // ========== MANIFEST LANGSUNG (BUKAN PATH) ==========
       manifest: {
         name: 'RootFacts - Fakta Menarik Sayuran',
         short_name: 'RootFacts',
@@ -46,6 +45,9 @@ export default defineConfig({
         'icons/icon-512x512.png'
       ],
       workbox: {
+        // ========== PERBESAR BATAS FILE ==========
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
+        
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,woff2}',
           '**/model/**/*.{json,bin}'
@@ -85,17 +87,6 @@ export default defineConfig({
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 * 30
-              }
-            }
-          },
-          {
-            urlPattern: /\/model\/.*\.(json|bin)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'model-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 7
               }
             }
           }
