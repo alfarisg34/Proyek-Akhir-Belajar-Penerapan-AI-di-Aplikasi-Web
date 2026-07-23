@@ -157,13 +157,32 @@ function App() {
                 rootFactsServiceRef.current.setTone(currentTone);
                 const fact = await rootFactsServiceRef.current.generateFacts(currentLabel);
                 
-                actions.setFunFactData(fact);
+                // ========== VALIDASI TAMBAHAN ==========
+                // Cek apakah fakta mengandung nama sayuran yang terdeteksi
+                const lowerFact = fact.toLowerCase();
+                const lowerLabel = currentLabel.toLowerCase();
+                
+                // Validasi: fakta harus mengandung nama sayuran
+                if (!lowerFact.includes(lowerLabel) && fact !== 'error') {
+                  console.warn(`⚠️ Generated fact doesn't contain the vegetable name, using fallback`);
+                  const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
+                  actions.setFunFactData(fallback);
+                } else if (fact === 'error' || !fact || fact.length < 10) {
+                  // Jika error atau terlalu pendek
+                  const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
+                  actions.setFunFactData(fallback);
+                } else {
+                  actions.setFunFactData(fact);
+                }
+                
                 actions.setAppState('result');
                 console.log(`📝 Fun fact generated for: ${currentLabel}`);
                 
               } catch (error) {
                 console.error('❌ Failed to generate fun fact:', error);
-                actions.setFunFactData('error');
+                // Gunakan fallback
+                const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
+                actions.setFunFactData(fallback);
                 actions.setAppState('result');
               }
             }, APP_CONFIG.analyzingDelay);

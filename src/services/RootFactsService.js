@@ -11,31 +11,33 @@ export class RootFactsService {
     this.currentTone = TONE_CONFIG.defaultTone;
     this.loadingProgress = 0;
     
-    // Konfigurasi default untuk generasi
+    // ========== KONFIGURASI OPTIMAL ==========
     this.generationConfig = {
-      max_new_tokens: 150,
-      temperature: 0.7,
-      top_p: 0.9,
+      max_new_tokens: 60,      // DIPERKECIL (sebelumnya 150)
+      temperature: 0.6,        // DITURUNKAN untuk hasil lebih konsisten
+      top_p: 0.85,             // DITURUNKAN sedikit
       do_sample: true,
+      repetition_penalty: 1.2,
+      length_penalty: 1.0,
     };
     
-    // Konfigurasi tone-based prompts
+    // Tone config tetap sama
     this.tonePrompts = {
       normal: {
-        prefix: 'Provide an interesting and informative fun fact about',
-        suffix: 'Keep it factual and educational.'
+        prefix: 'Generate one short and interesting fun fact about',
+        suffix: 'Output only the fun fact. Do not mention other objects.'
       },
       funny: {
-        prefix: 'Tell me a funny, entertaining, and witty fun fact about',
-        suffix: 'Make it humorous and enjoyable to read!'
+        prefix: 'Generate one short and funny fun fact about',
+        suffix: 'Make it humorous but still factual. Do not mention other objects.'
       },
       professional: {
-        prefix: 'Provide a professional, scientific, and detailed fun fact about',
-        suffix: 'Use precise terminology and maintain a formal tone.'
+        prefix: 'Generate one short and scientifically accurate fun fact about',
+        suffix: 'Use precise terminology. Do not mention other objects.'
       },
       casual: {
-        prefix: 'Give me a casual, friendly, and easy-to-read fun fact about',
-        suffix: 'Keep it relaxed and conversational.'
+        prefix: 'Generate one short and casual fun fact about',
+        suffix: 'Keep it friendly and easy to read. Do not mention other objects.'
       }
     };
   }
@@ -128,22 +130,23 @@ export class RootFactsService {
       this.isGenerating = true;
       console.log(`🤖 Generating fun fact for: ${vegetableName} (tone: ${this.currentTone})`);
 
-      // ========== BUILD PROMPT ==========
+      // ========== BUILD PROMPT YANG LEBIH SPESIFIK ==========
       const toneConfig = this.tonePrompts[this.currentTone] || this.tonePrompts.normal;
       
-      // Buat prompt yang lebih terstruktur untuk hasil yang lebih baik
-      const prompt = `${toneConfig.prefix} "${vegetableName}". ${toneConfig.suffix}`;
-      
+      // Prompt yang sangat spesifik untuk menghindari fakta tidak relevan
+      const prompt = `Generate one short, interesting, and specific fun fact about "${vegetableName}". 
+  The fun fact must be directly related to "${vegetableName}" and must NOT mention or describe any other vegetable, fruit, food, person, place, or unrelated topic. 
+  Output only the fun fact in one short sentence.`;
+
       console.log(`📝 Prompt: ${prompt}`);
 
-      // ========== GENERATE ==========
+      // ========== GENERATE DENGAN PARAMETER OPTIMAL ==========
       const result = await this.generator(prompt, {
-        max_new_tokens: this.generationConfig.max_new_tokens,
-        temperature: this.generationConfig.temperature,
-        top_p: this.generationConfig.top_p,
-        do_sample: this.generationConfig.do_sample,
-        // Untuk model LaMini-Flan-T5
-        repetition_penalty: 1.1,
+        max_new_tokens: 60,  // DIPERKECIL untuk kecepatan (sebelumnya 150)
+        temperature: 0.6,    // DITURUNKAN untuk hasil lebih konsisten (sebelumnya 0.7)
+        top_p: 0.85,         // DITURUNKAN sedikit (sebelumnya 0.9)
+        do_sample: true,
+        repetition_penalty: 1.2,  // DITINGKATKAN untuk mengurangi pengulangan
         length_penalty: 1.0,
       });
 
@@ -160,10 +163,37 @@ export class RootFactsService {
       // Clean up hasil
       generatedText = generatedText.trim();
       
-      // Jika hasil kosong, berikan fallback
-      if (!generatedText || generatedText.length < 10) {
-        console.warn('⚠️ Generated text too short, using fallback');
-        generatedText = this.getFallbackFact(vegetableName);
+      // ========== VALIDASI HASIL ==========
+      // Cek apakah hasil mengandung nama objek lain yang tidak relevan
+      const irrelevantKeywords = ['chilli', 'pepper', 'tomato', 'potato', 'carrot', 'cabbage', 
+                                'broccoli', 'spinach', 'onion', 'garlic', 'cucumber', 'corn',
+                                'mountain', 'climber', 'person', 'people', 'country', 'city'];
+      
+      const lowerText = generatedText.toLowerCase();
+      const vegetableLower = vegetableName.toLowerCase();
+      
+      // Cek apakah hasil mengandung kata yang tidak relevan
+      const hasIrrelevantContent = irrelevantKeywords.some(keyword => {
+        // Jangan flag jika keyword adalah bagian dari nama sayuran itu sendiri
+        if (vegetableLower.includes(keyword) || keyword.includes(vegetableLower)) {
+          return false;
+        }
+        return lowerText.includes(keyword);
+      });
+
+      // Jika hasil tidak mengandung nama sayuran atau mengandung konten tidak relevan
+      if (!lowerText.includes(vegetableLower) || hasIrrelevantContent) {
+        console.warn(`⚠️ Generated fact seems irrelevant, using fallback for: ${vegetableName}`);
+        console.warn(`   Generated: ${generatedText}`);
+        this.isGenerating = false;
+        return this.getFallbackFact(vegetableName);
+      }
+
+      // Jika hasil terlalu pendek atau terlalu panjang
+      if (generatedText.length < 15 || generatedText.length > 200) {
+        console.warn(`⚠️ Generated fact too short/long, using fallback for: ${vegetableName}`);
+        this.isGenerating = false;
+        return this.getFallbackFact(vegetableName);
       }
 
       console.log(`✅ Fun fact generated: ${generatedText.substring(0, 60)}...`);
@@ -174,45 +204,52 @@ export class RootFactsService {
     } catch (error) {
       console.error('❌ Failed to generate facts:', error);
       this.isGenerating = false;
-      
-      // Fallback jika terjadi error
       return this.getFallbackFact(vegetableName);
     }
   }
 
-  // ========== FALLBACK FACTS ==========
+  // ========== FALLBACK FACTS (Lebih Spesifik & Menarik) ==========
   getFallbackFact(vegetableName) {
     const fallbackFacts = {
-      'Beetroot': 'Beetroot is rich in antioxidants and helps lower blood pressure. It also gives a natural red color to foods!',
-      'Paprika': 'Paprika is made from dried and ground peppers. It\'s rich in vitamin C and adds vibrant color to dishes!',
-      'Cabbage': 'Cabbage is a leafy green vegetable that has been cultivated for thousands of years. It\'s packed with vitamin K!',
-      'Carrot': 'Carrots are root vegetables that are rich in beta-carotene, which converts to vitamin A in the body. They help improve eyesight!',
-      'Cauliflower': 'Cauliflower is a cruciferous vegetable packed with nutrients. It contains compounds that may help fight cancer!',
-      'Chilli': 'Chillies contain capsaicin, which gives them their spicy heat. They are rich in vitamin C and can boost metabolism!',
-      'Corn': 'Corn is one of the most widely grown crops in the world. It\'s a good source of fiber, vitamins, and minerals!',
-      'Cucumber': 'Cucumbers are 95% water and are very low in calories. They contain antioxidants that help reduce inflammation!',
-      'Eggplant': 'Eggplant is a nightshade vegetable rich in fiber and antioxidants. It\'s a great meat substitute in many dishes!',
-      'Garlic': 'Garlic has been used for medicinal purposes for centuries. It contains allicin, which has powerful antibacterial properties!',
-      'Ginger': 'Ginger is a root spice that has anti-inflammatory properties. It\'s commonly used to treat nausea and digestive issues!',
-      'Lettuce': 'Lettuce is a leafy vegetable that is very low in calories. It\'s a good source of vitamin A and K!',
-      'Onion': 'Onions are bulb vegetables rich in antioxidants. They contain quercetin, which may help reduce inflammation!',
-      'Peas': 'Peas are small green legumes that are rich in protein, fiber, and vitamins. They are very easy to grow!',
-      'Potato': 'Potatoes are root vegetables that are high in carbohydrates. They are a good source of vitamin C and potassium!',
-      'Turnip': 'Turnips are root vegetables that are high in fiber and vitamin C. Both the root and greens are edible!',
-      'Soybean': 'Soybeans are legumes that are a complete protein source. They contain all essential amino acids!',
-      'Spinach': 'Spinach is a leafy green vegetable rich in iron, calcium, and vitamins. Popeye was right, it makes you strong!',
+      'Beetroot': 'Beetroot gets its deep red color from betalains, a natural pigment that also acts as a powerful antioxidant!',
+      'Paprika': 'Paprika is made from dried and ground bell peppers or chili peppers. The spice can range from sweet to hot!',
+      'Cabbage': 'Cabbage contains high levels of vitamin K and C. One cup of cabbage has about 85% of your daily vitamin K needs!',
+      'Carrot': 'Carrots were originally purple or white, not orange! The orange carrot was developed in the Netherlands in the 17th century.',
+      'Cauliflower': 'Cauliflower comes in four colors: white, orange, purple, and green. Each color has different nutritional benefits!',
+      'Chilli': 'The heat of chili peppers is measured in Scoville Heat Units. The Carolina Reaper is currently the hottest at 2.2 million SHU!',
+      'Corn': 'Corn is actually a grain, not a vegetable! It was first domesticated by indigenous peoples in Mexico over 10,000 years ago.',
+      'Cucumber': 'Cucumbers are 95% water and belong to the same family as pumpkins, squash, and melons (Cucurbitaceae)!',
+      'Eggplant': 'Eggplant is technically a berry, not a vegetable! It belongs to the nightshade family, along with tomatoes and potatoes.',
+      'Garlic': 'Garlic contains a compound called allicin, which gives it its pungent smell. Allicin has powerful antibacterial properties!',
+      'Ginger': 'Ginger is a rhizome, not a root! It has been used for over 5,000 years in traditional medicine for nausea and inflammation.',
+      'Lettuce': 'Lettuce is 95% water and can be grown hydroponically. It was first cultivated by the ancient Egyptians 4,500 years ago!',
+      'Onion': 'Onions contain quercetin, a powerful antioxidant that may help reduce blood pressure and fight inflammation.',
+      'Peas': 'Peas are legumes that fix nitrogen in the soil, making them great for crop rotation and improving soil health!',
+      'Potato': 'The potato was first domesticated in the Andes mountains of South America over 7,000 years ago. There are over 4,000 varieties!',
+      'Turnip': 'Both the root and the leaves of turnips are edible. The leaves are rich in calcium, iron, and vitamin C!',
+      'Soybean': 'Soybeans are a complete protein, meaning they contain all nine essential amino acids that humans need from food!',
+      'Spinach': 'Spinach is rich in iron, calcium, and vitamins A, C, and K. It was made famous by Popeye the Sailor in the 1930s!',
     };
 
     // Cari fallback berdasarkan nama sayuran (case insensitive)
     const normalizedName = vegetableName.toLowerCase().trim();
+    
+    // Cek exact match dulu
+    for (const [key, fact] of Object.entries(fallbackFacts)) {
+      if (normalizedName === key.toLowerCase()) {
+        return fact;
+      }
+    }
+    
+    // Cek partial match
     for (const [key, fact] of Object.entries(fallbackFacts)) {
       if (normalizedName.includes(key.toLowerCase()) || key.toLowerCase().includes(normalizedName)) {
         return fact;
       }
     }
 
-    // Fallback default jika tidak ditemukan
-    return `Did you know that ${vegetableName} is a nutritious vegetable packed with vitamins and minerals! It's a great addition to a healthy diet. 🥗`;
+    // Fallback default dengan nama sayuran yang valid
+    return `🌱 ${vegetableName} is a nutritious plant that provides essential vitamins and minerals for a healthy diet. Try adding it to your meals today!`;
   }
 
   // ========== CHECK READY ==========
