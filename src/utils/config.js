@@ -1,8 +1,11 @@
 export const APP_CONFIG = {
-  detectionConfidenceThreshold: 70,
+  detectionConfidenceThreshold: 90,  // 90% minimum
   analyzingDelay: 2000,
   factsGenerationDelay: 2000,
-  detectionRetryInterval: 100
+  detectionRetryInterval: 100,
+  // ========== KONFIGURASI CAPTURE ==========
+  stableDetectionCount: 3,           // Jumlah deteksi stabil sebelum capture
+  captureConfidenceThreshold: 0.7,   // Minimal confidence untuk capture
 };
 
 export const TONE_CONFIG = {

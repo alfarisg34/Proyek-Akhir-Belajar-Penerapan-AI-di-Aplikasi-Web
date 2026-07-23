@@ -17,7 +17,15 @@ function App() {
   const rootFactsServiceRef = useRef(null);
   const detectionLoopRef = useRef(null);
   const isRunningRef = useRef(false);
+  
+  // ========== REFS UNTUK CAPTURE LOGIC ==========
   const lastDetectedLabelRef = useRef(null);
+  const stableDetectionCountRef = useRef(0);
+  const isCapturedRef = useRef(false);
+  const capturedLabelRef = useRef(null);
+  const capturedConfidenceRef = useRef(0);
+  const captureTimerRef = useRef(null);
+  const isGeneratingRef = useRef(false);
   
   // ========== STATE UNTUK PROPS KE CAMERASECTION ==========
   const [detectedLabel, setDetectedLabel] = useState(null);
@@ -28,53 +36,44 @@ function App() {
   const [currentTone, setCurrentTone] = useState('normal');
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // ========== INISIALISASI SERVICES (HANYA SEKALI) ==========
+  // ========== INISIALISASI SERVICES ==========
   useEffect(() => {
     const initializeServices = async () => {
       try {
         console.log('🚀 Initializing services...');
         actions.setModelStatus('Memuat Model AI...');
 
-        // 1. Inisialisasi DetectionService
         const detectionService = new DetectionService();
         detectionServiceRef.current = detectionService;
 
-        // 2. Inisialisasi CameraService
         const cameraService = new CameraService();
         cameraServiceRef.current = cameraService;
 
-        // 3. Inisialisasi RootFactsService
         const rootFactsService = new RootFactsService();
         rootFactsServiceRef.current = rootFactsService;
 
-        // 4. Update state dengan services
         actions.setServices({
           detection: detectionService,
           camera: cameraService,
           generator: rootFactsService
         });
 
-        // 5. Load Detection Model (SATU KALI DI SINI)
         actions.setModelStatus('Memuat Model Deteksi...');
         await detectionService.loadModel('/model/model.json');
         console.log('✅ Detection model loaded');
         
-        // Update state untuk UI
         setIsModelReady(true);
         setBackendInfo(detectionService.getBackend());
         setLoadingProgress(100);
 
-        // 6. Load Generative AI Model
         actions.setModelStatus('Memuat Model AI Generatif...');
         await rootFactsService.loadModel();
         console.log('✅ Generative AI model loaded');
 
-        // 7. Load daftar kamera
         actions.setModelStatus('Memuat Daftar Kamera...');
         await cameraService.loadCameras();
         console.log('✅ Cameras loaded');
 
-        // 8. Selesai
         actions.setModelStatus('Model AI Siap');
         console.log('✅ All services initialized successfully!');
 
@@ -87,7 +86,6 @@ function App() {
 
     initializeServices();
 
-    // ========== CLEANUP ==========
     return () => {
       if (detectionLoopRef.current) {
         cancelAnimationFrame(detectionLoopRef.current);
@@ -102,11 +100,113 @@ function App() {
       if (rootFactsServiceRef.current) {
         rootFactsServiceRef.current.dispose();
       }
+      if (captureTimerRef.current) {
+        clearTimeout(captureTimerRef.current);
+        captureTimerRef.current = null;
+      }
       console.log('🧹 App cleaned up');
     };
-  }, []); // HANYA SEKALI
+  }, []);
 
-  // ========== FUNGSI DETEKSI LOOP (SATU-SATUNYA) ==========
+  // ========== FUNGSI CAPTURE FRAME ==========
+  const captureFrame = (videoElement) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth || 640;
+      canvas.height = videoElement.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0);
+      console.log('📸 Frame captured');
+      return canvas;
+    } catch (error) {
+      console.warn('⚠️ Failed to capture frame:', error);
+      return null;
+    }
+  };
+
+  // ========== FUNGSI STOP CAMERA DAN TAMPILKAN HASIL ==========
+  const stopCameraAndShowResult = async (label, confidence) => {
+    if (isGeneratingRef.current) {
+      console.log('⏳ Already generating, skipping...');
+      return;
+    }
+
+    try {
+      isGeneratingRef.current = true;
+      
+      // ========== 1. STOP KAMERA ==========
+      console.log(`🛑 Auto-stopping camera after capture: ${label}`);
+      
+      if (cameraServiceRef.current) {
+        cameraServiceRef.current.stopCamera();
+      }
+      
+      isRunningRef.current = false;
+      if (detectionLoopRef.current) {
+        cancelAnimationFrame(detectionLoopRef.current);
+        detectionLoopRef.current = null;
+      }
+      
+      // Update state running
+      actions.setRunning(false);
+      
+      // ========== 2. CAPTURE FRAME ==========
+      const videoElement = cameraServiceRef.current?.getVideoElement();
+      if (videoElement) {
+        captureFrame(videoElement);
+      }
+      
+      // ========== 3. GENERATE FUN FACT ==========
+      console.log(`🤖 Generating fun fact for: ${label} (${(confidence * 100).toFixed(1)}%)`);
+      actions.setAppState('analyzing');
+      
+      rootFactsServiceRef.current.setTone(currentTone);
+      const fact = await rootFactsServiceRef.current.generateFacts(label);
+      
+      // Validasi hasil
+      const lowerFact = fact.toLowerCase();
+      const lowerLabel = label.toLowerCase();
+      
+      if (!lowerFact.includes(lowerLabel) && fact !== 'error') {
+        console.warn(`⚠️ Generated fact doesn't contain the vegetable name, using fallback`);
+        const fallback = rootFactsServiceRef.current.getFallbackFact(label);
+        actions.setFunFactData(fallback);
+      } else if (fact === 'error' || !fact || fact.length < 10) {
+        const fallback = rootFactsServiceRef.current.getFallbackFact(label);
+        actions.setFunFactData(fallback);
+      } else {
+        actions.setFunFactData(fact);
+      }
+      
+      actions.setAppState('result');
+      console.log(`✅ Fun fact generated for: ${label}`);
+      
+      // ========== 4. RESET CAPTURE STATE ==========
+      isCapturedRef.current = true;
+      capturedLabelRef.current = label;
+      capturedConfidenceRef.current = confidence;
+      
+      console.log(`📸 Capture complete! Camera stopped. Press "Mulai Scan" to scan again.`);
+      
+    } catch (error) {
+      console.error('❌ Failed to process capture:', error);
+      const fallback = rootFactsServiceRef.current.getFallbackFact(label);
+      actions.setFunFactData(fallback);
+      actions.setAppState('result');
+      
+      // Jika error, tetap stop camera
+      if (cameraServiceRef.current) {
+        cameraServiceRef.current.stopCamera();
+      }
+      isRunningRef.current = false;
+      actions.setRunning(false);
+      
+    } finally {
+      isGeneratingRef.current = false;
+    }
+  };
+
+  // ========== FUNGSI DETEKSI LOOP ==========
   const startDetectionLoop = () => {
     const videoElement = cameraServiceRef.current?.getVideoElement();
     const detectionService = detectionServiceRef.current;
@@ -116,7 +216,7 @@ function App() {
       return;
     }
 
-    console.log('🔄 Starting detection loop...');
+    console.log('🔄 Starting detection loop (auto-stop on capture)...');
 
     const detect = async () => {
       try {
@@ -144,48 +244,67 @@ function App() {
             isValid: result.confidence >= (APP_CONFIG.detectionConfidenceThreshold / 100)
           });
 
-          // Cek apakah sayuran berbeda dari deteksi sebelumnya
           const currentLabel = result.label;
+          const currentConfidence = result.confidence;
+          const THRESHOLD = APP_CONFIG.detectionConfidenceThreshold / 100;
+
+          // ============================================================
+          // ========== CAPTURE LOGIC: Auto-stop camera ==========
+          // ============================================================
+
+          // Jika sudah pernah capture, skip
+          if (isCapturedRef.current) {
+            console.log(`⏭️ Already captured "${capturedLabelRef.current}". Skipping detection.`);
+            return;
+          }
+
+          // CASE 1: Label BERUBAH
           if (lastDetectedLabelRef.current !== currentLabel) {
+            console.log(`🔄 Label changed: "${lastDetectedLabelRef.current}" → "${currentLabel}"`);
+            
+            // Reset counter
+            stableDetectionCountRef.current = 0;
             lastDetectedLabelRef.current = currentLabel;
             
-            actions.setAppState('analyzing');
-            
-            // Generate fun fact
-            setTimeout(async () => {
-              try {
-                rootFactsServiceRef.current.setTone(currentTone);
-                const fact = await rootFactsServiceRef.current.generateFacts(currentLabel);
+            if (currentConfidence >= THRESHOLD) {
+              stableDetectionCountRef.current = 1;
+              console.log(`🔍 Stable detection #1: ${currentLabel} (${(currentConfidence * 100).toFixed(1)}%)`);
+            }
+          }
+          // CASE 2: Label SAMA
+          else {
+            if (currentConfidence >= THRESHOLD) {
+              stableDetectionCountRef.current += 1;
+              console.log(`🔍 Stable detection #${stableDetectionCountRef.current}: ${currentLabel} (${(currentConfidence * 100).toFixed(1)}%)`);
+              
+              // Jika sudah 3 deteksi stabil → CAPTURE & STOP CAMERA
+              if (stableDetectionCountRef.current >= 3 && !isCapturedRef.current) {
+                console.log(`🎯 CAPTURE TRIGGERED! Stopping camera...`);
                 
-                // ========== VALIDASI TAMBAHAN ==========
-                // Cek apakah fakta mengandung nama sayuran yang terdeteksi
-                const lowerFact = fact.toLowerCase();
-                const lowerLabel = currentLabel.toLowerCase();
-                
-                // Validasi: fakta harus mengandung nama sayuran
-                if (!lowerFact.includes(lowerLabel) && fact !== 'error') {
-                  console.warn(`⚠️ Generated fact doesn't contain the vegetable name, using fallback`);
-                  const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
-                  actions.setFunFactData(fallback);
-                } else if (fact === 'error' || !fact || fact.length < 10) {
-                  // Jika error atau terlalu pendek
-                  const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
-                  actions.setFunFactData(fallback);
-                } else {
-                  actions.setFunFactData(fact);
+                // Hentikan loop
+                isRunningRef.current = false;
+                if (detectionLoopRef.current) {
+                  cancelAnimationFrame(detectionLoopRef.current);
+                  detectionLoopRef.current = null;
                 }
                 
-                actions.setAppState('result');
-                console.log(`📝 Fun fact generated for: ${currentLabel}`);
-                
-              } catch (error) {
-                console.error('❌ Failed to generate fun fact:', error);
-                // Gunakan fallback
-                const fallback = rootFactsServiceRef.current.getFallbackFact(currentLabel);
-                actions.setFunFactData(fallback);
-                actions.setAppState('result');
+                // Proses capture dan stop camera
+                await stopCameraAndShowResult(currentLabel, currentConfidence);
               }
-            }, APP_CONFIG.analyzingDelay);
+            } 
+            else {
+              // Confidence turun
+              if (stableDetectionCountRef.current > 0) {
+                console.log(`📉 Confidence dropped (${(currentConfidence * 100).toFixed(1)}%), resetting counter`);
+                stableDetectionCountRef.current = 0;
+              }
+            }
+          }
+
+        } else {
+          // Tidak ada deteksi
+          if (stableDetectionCountRef.current > 0) {
+            stableDetectionCountRef.current = Math.max(0, stableDetectionCountRef.current - 1);
           }
         }
 
@@ -219,8 +338,8 @@ function App() {
       }
 
       if (isRunningRef.current) {
-        // STOP
-        console.log('🛑 Stopping camera...');
+        // ========== STOP MANUAL ==========
+        console.log('🛑 Stopping camera (manual)...');
         
         isRunningRef.current = false;
         if (detectionLoopRef.current) {
@@ -231,22 +350,34 @@ function App() {
         cameraService.stopCamera();
         actions.setRunning(false);
         actions.setAppState('idle');
-        actions.resetResults();
+        
+        // Reset semua state (kecuali hasil capture tetap tampil)
         lastDetectedLabelRef.current = null;
+        stableDetectionCountRef.current = 0;
         setDetectedLabel(null);
         setDetectedConfidence(0);
         
         console.log('✅ Camera stopped');
 
       } else {
-        // START
+        // ========== START ==========
         console.log('📷 Starting camera...');
         actions.setAppState('idle');
         actions.setError(null);
-        actions.resetResults();
+        
+        // Reset semua state untuk scan baru
         lastDetectedLabelRef.current = null;
+        stableDetectionCountRef.current = 0;
+        isCapturedRef.current = false;
+        capturedLabelRef.current = null;
+        capturedConfidenceRef.current = 0;
+        isGeneratingRef.current = false;
         setDetectedLabel(null);
         setDetectedConfidence(0);
+        
+        // Reset hasil sebelumnya di UI
+        actions.resetResults();
+        actions.setFunFactData(null);
 
         await cameraService.startCamera();
         actions.setRunning(true);
@@ -280,25 +411,36 @@ function App() {
       rootFactsServiceRef.current.setTone(tone);
       console.log(`🎵 Tone changed to: ${tone}`);
       
-      // Regenerate jika sudah ada hasil
-      if (state.detectionResult && state.appState === 'result') {
-        const vegetableName = state.detectionResult.className;
-        if (vegetableName) {
-          actions.setAppState('analyzing');
-          actions.setFunFactData(null);
-          
-          setTimeout(async () => {
-            try {
-              const fact = await rootFactsServiceRef.current.generateFacts(vegetableName);
+      // Regenerate jika sudah ada hasil capture
+      if (state.appState === 'result' && capturedLabelRef.current) {
+        actions.setAppState('analyzing');
+        actions.setFunFactData(null);
+        
+        setTimeout(async () => {
+          try {
+            const fact = await rootFactsServiceRef.current.generateFacts(capturedLabelRef.current);
+            
+            const lowerFact = fact.toLowerCase();
+            const lowerLabel = capturedLabelRef.current.toLowerCase();
+            
+            if (!lowerFact.includes(lowerLabel) && fact !== 'error') {
+              const fallback = rootFactsServiceRef.current.getFallbackFact(capturedLabelRef.current);
+              actions.setFunFactData(fallback);
+            } else if (fact === 'error' || !fact || fact.length < 10) {
+              const fallback = rootFactsServiceRef.current.getFallbackFact(capturedLabelRef.current);
+              actions.setFunFactData(fallback);
+            } else {
               actions.setFunFactData(fact);
-              actions.setAppState('result');
-            } catch (error) {
-              console.error('❌ Failed to regenerate fun fact:', error);
-              actions.setFunFactData('error');
-              actions.setAppState('result');
             }
-          }, APP_CONFIG.factsGenerationDelay);
-        }
+            
+            actions.setAppState('result');
+          } catch (error) {
+            console.error('❌ Failed to regenerate fun fact:', error);
+            const fallback = rootFactsServiceRef.current.getFallbackFact(capturedLabelRef.current);
+            actions.setFunFactData(fallback);
+            actions.setAppState('result');
+          }
+        }, APP_CONFIG.factsGenerationDelay);
       }
     }
   };
@@ -313,7 +455,7 @@ function App() {
     }
 
     try {
-      const vegetableName = state.detectionResult?.className || 'Sayuran';
+      const vegetableName = capturedLabelRef.current || state.detectionResult?.className || 'Sayuran';
       const copyText = `🌱 Fakta Menarik tentang ${vegetableName}:\n\n${factText}`;
       
       await navigator.clipboard.writeText(copyText);
@@ -364,7 +506,6 @@ function App() {
         <p>Powered by TensorFlow.js &amp; Transformers.js</p>
       </footer>
       
-      {/* Toast Error */}
       {state.error && (
         <div style={{
           position: 'fixed',
@@ -403,7 +544,6 @@ function App() {
         </div>
       )}
       
-      {/* Toast Copy Success */}
       {copySuccess && (
         <div style={{
           position: 'fixed',
